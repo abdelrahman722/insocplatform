@@ -3,28 +3,13 @@
     <div class="h-full viewBox fixed top-0 bottom-0 right-1/5 left-1/5">
         @if ($selectedConversation)
             <!-- نافذة الرسائل -->
-            <div x-ref="chatMessages" class="fixed top-2/12 right-1/5 left-1/5 h-8/12 overflow-y-auto scroll-smooth" style="scrollbar-width: none; -ms-overflow-style: none;">
+            <div id="chatWindow" class="fixed top-2/12 right-1/5 left-1/5 h-8/12 overflow-y-auto" style="scrollbar-width: none; -ms-overflow-style: none;" wire:key="conversation-{{ $selectedConversation->id }}-{{ $selectedConversation->refresh_key ?? 'initial' }}">
                 <div class="flex flex-col space-y-3">
                     @foreach($selectedConversation->messages as $message)
-                        <div class="flex {{ $message->sender_id == $user->id ? 'justify-end' : 'justify-start' }}">
-                            <div class="
-                                max-w-xs px-4 py-2 rounded-lg
-                                {{ $message->sender_id == $user->id 
-                                    ? 'bg-blue-600 text-white rounded-br-none' 
-                                    : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-bl-none shadow'
-                                }}
-                            ">
-                                <p class="text-sm">{{ $message->body }}</p>
-                                <span class="text-xs opacity-70 mt-1 block">
-                                    {{ \Carbon\Carbon::parse($message->created_at)->format('H:i') }}
-                                    @if($message->read_at)
-                                        <span class="text-green-300">✓✓</span>
-                                    @elseif($message->sender_id == $user->id)
-                                        <span>✓</span>
-                                    @endif
-                                </span>
-                            </div>
-                        </div>
+                        <livewire:chat.message-chat 
+                            :message="$message" 
+                            wire:key="message-{{ $message->id }}-{{ $message->read_at ? 'read' : 'unread' }}"
+                        />
                     @endforeach
                 </div>
             </div>
@@ -77,4 +62,139 @@
             @endforeach
         </div>
     </flux:sidebar>
+
+    <script>
+        // 1. إضافة متغير لتتبع آخر وقت تم فيه التمرير
+        let lastScrollTime = 0;
+        const MIN_SCROLL_INTERVAL = 200; // 200ms بين كل تمرير
+        
+        // 1. دالة التمرير الأساسية (معدلة)
+        function safeScrollToBottom() {
+            // تجنب التمرير المتكرر في فترة قصيرة
+            const now = Date.now();
+            if (now - lastScrollTime < MIN_SCROLL_INTERVAL) {
+                return false;
+            }
+            
+            const container = document.getElementById('chatWindow');
+            if (!container) {
+                console.log('⚠️ السكربت: chatWindow غير موجود في DOM');
+                return false;
+            }
+            
+            console.log('✅ السكربت: chatWindow موجود في DOM');
+            console.log('الارتفاع الكلي:', container.scrollHeight);
+            console.log('الارتفاع المرئي:', container.clientHeight);
+            
+            // تأكد أن المحتوى أكبر من ارتفاع العنصر
+            if (container.scrollHeight <= container.clientHeight) {
+                console.log('⚠️ السكربت: لا يوجد محتوى كافٍ للتمرير');
+                return false;
+            }
+            
+            // تمرير إلى الأسفل
+            container.scrollTop = container.scrollHeight;
+            lastScrollTime = Date.now(); // تحديث وقت آخر تمرير
+            return true;
+        }
+
+        // 2. دالة المحاولات الذكية (معدلة)
+        function tryScrollWithDelay(attempt = 1, source = 'unknown') {
+            
+            if (safeScrollToBottom()) {
+                return;
+            }
+            
+            if (attempt >= 20) {
+                return;
+            }
+            
+            // تأخير متزايد (50ms, 100ms, 150ms...)
+            setTimeout(() => tryScrollWithDelay(attempt + 1, source), attempt * 50);
+        }
+
+        // 3. دالة التمرير الفورية (للحالات الحرجة)
+        function forceScroll() {
+            setTimeout(() => tryScrollWithDelay(1, 'force'), 50);
+        }
+
+        // 4. تأكد من أن Livewire جاهز
+        function waitForLivewire() {
+            if (typeof Livewire === 'undefined') {
+                setTimeout(waitForLivewire, 100);
+                return;
+            }
+            
+            // 4.1 تمرير عند اختيار محادثة جديدة
+            Livewire.hook('message.processed', (message, component) => {
+                
+                // تحقق إذا كانت الرسالة تتعلق بـ selectConversation
+                const isSelectConversation = message.updateQueue?.some(u => 
+                    u.payload?.method === 'call' && 
+                    u.payload?.params?.[0] === 'selectConversation'
+                );
+                
+                if (isSelectConversation) {
+                    setTimeout(() => tryScrollWithDelay(1, 'selectConversation'), 100);
+                }
+            });
+            
+            // 4.2 تمرير عند استقبال حدث scroll-chat
+            Livewire.on('scroll-chat', (data) => {
+                setTimeout(() => tryScrollWithDelay(1, 'scroll-chat'), 50);
+            });
+            
+            // 4.3 تعطيل التمرير عند تحديث العنصر (لتجنب التكرار)
+            // تم إزالة هذا لتجنب التمرير المكرر
+            // Livewire.hook('element.updated', (el, component) => { ... });
+            
+            // 4.4 تمرير عند التحميل الأولي (للمحادثات المفتوحة)
+            setTimeout(() => {
+                if (document.getElementById('chatWindow')) {
+                    tryScrollWithDelay(1, 'initial');
+                }
+            }, 500);
+        }
+
+        // 5. ابدأ المراقبة
+        waitForLivewire();
+
+        // 6. مراقبة DOM للتأكد من وجود العنصر (معدلة)
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach(mutation => {
+                if (mutation.addedNodes) {
+                    for (let node of mutation.addedNodes) {
+                        if (node.nodeType === 1 && node.id === 'chatWindow') {
+                            // تجنب التمرير المكرر من هنا
+                            setTimeout(() => {
+                                if (Date.now() - lastScrollTime > 500) {
+                                    tryScrollWithDelay(1, 'DOM mutation');
+                                }
+                            }, 50);
+                        }
+                    }
+                }
+            });
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        // 7. واجهة خارجية للتحقيق
+        window.debugChatScroll = {
+            scrollToBottom: forceScroll,
+            checkElement: () => {
+                const container = document.getElementById('chatWindow');
+                console.log('chatWindow موجود؟', !!container);
+                if (container) {
+                    console.log('scrollHeight:', container.scrollHeight);
+                    console.log('clientHeight:', container.clientHeight);
+                    console.log('scrollTop:', container.scrollTop);
+                }
+            }
+        };
+        
+    </script>
 </div>

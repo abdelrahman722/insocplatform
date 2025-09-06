@@ -50,4 +50,5 @@ class Teacher extends Model
             (new Student)->guardians()   // Student → Guardians (many-to-many)
         )->distinct();
     }
+    
 }

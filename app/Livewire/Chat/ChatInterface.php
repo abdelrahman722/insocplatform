@@ -2,31 +2,65 @@
 
 namespace App\Livewire\Chat;
 
-use App\Events\SendMessageEvent;
 use App\Models\Message;
 use Livewire\Component;
 use App\Models\Conversation;
+use App\Events\SendMessageEvent;
+use App\Events\MessageReadedEvent;
 use Illuminate\Support\Facades\Auth;
+use Usernotnull\Toast\Concerns\WireToast;
 
 class ChatInterface extends Component
 {
+    use WireToast;
     public $user;
     public $conversationsUser, $selectedConversation, $search = '';
     public $messageBody, $attachment, $reciverId;
-
+    
+    /**
+     * التقاط الحدث الخاص بالشات
+     *
+     * @return array
+     */
     public function getListeners()
     {
         return [
-            "echo-private:chat." . Auth::id() . ",SendMessageEvent" => 'newChatMessage'
+            "echo-private:chat." . $this->user->id . ",SendMessageEvent" => 'newChatMessage',
+            "echo-private:chatReaded." . $this->user->id . ",MessageReadedEvent" => 'chatReadUpdateStutes',
         ];
     }
+    
+    /**
+     * تحديث الشات
+     *
+     * @return void
+     */
+    public function chatReadUpdateStutes($data)
+    {
+        if ($this->selectedConversation && $data['id'] == $this->selectedConversation->id) {
+            foreach ($this->selectedConversation->messages as $message) {
+                $this->dispatch('message-updated', $message->id)->to(MessageChat::class);
+            }
+            $this->dispatch('scroll-chat');
+        }
+    }
 
-    public function mount()
+    /**
+     * دالة البدا
+     *
+     * @return void
+     */
+    public function mount($conversationsUser)
     {
         $this->user = Auth::user();
-        $this->getConversationsUser();
+        $this->conversationsUser = $conversationsUser;
     }
-    
+        
+    /**
+     * دالة البحث عن الاشخاص للمحادثة
+     *
+     * @return void
+     */
     public function updatedSearch()
     {
         $search = $this->search;
@@ -40,22 +74,21 @@ class ChatInterface extends Component
             });
         }
     }
-
-    private function getConversationsUser()
-    {
-        if ($this->user->role == 'guardian') {
-            $this->conversationsUser = $this->user->guardian->teachers()->with('user')->get();
-        }elseif($this->user->role == 'teacher'){
-            $this->conversationsUser = $this->user->teacher->guardians()->with('user')->get();
-        }
-    }
-
+    
+    /**
+     * اختيار محادثة
+     *
+     * @param  mixed $id
+     * @return void
+     */
     public function selectConversation($id)
     {
-        $this->fill(['messageBody' => '']);
+        $this->messageBody = '';
         $this->reciverId = $id;
         $myId = $this->user->id;
+
         $conversation = Conversation::where('user_id_1', $id)->where('user_id_2', $myId)->orWhere('user_id_1', $myId)->where('user_id_2', $id)->with('messages')->first();
+
         if ($conversation) {
             $this->selectedConversation = $conversation;
         } else {
@@ -66,6 +99,15 @@ class ChatInterface extends Component
             ]);
             $this->selectedConversation = $conversation;
         }
+        
+        $conversation->messages()->where('sender_id', $this->reciverId)->whereNull('read_at') ->update([
+            'is_read' => true,
+            'read_at' => now()
+        ]);
+        MessageReadedEvent::dispatch($conversation);
+
+        // أطلق حدث لتفعيل التمرير
+        $this->dispatch('scroll-chat');
     }
 
     public function sendMessage()
@@ -73,8 +115,20 @@ class ChatInterface extends Component
         if (empty($this->messageBody) && !$this->attachment) return;
 
         $conversation = Conversation::find($this->selectedConversation->id);
+        
         if (!$conversation) return;
+        $message = $this->createMessages($conversation);
 
+        SendMessageEvent::dispatch($message);
+        $this->selectedConversation->load('messages');
+        // أطلق حدث لتفعيل التمرير
+        $this->dispatch('scroll-chat');
+        // ✅ تفريغ الحقول
+        $this->reset(['messageBody', 'attachment']);
+    }
+
+    public function createMessages(Conversation $conversation): Message
+    {
         $this->validate([
             'messageBody' => 'nullable|string|max:1000',
             'attachment' => 'nullable|file|max:10240',
@@ -97,18 +151,30 @@ class ChatInterface extends Component
         } else {
             $data['type'] = 'text';
         }
-
-        $message = Message::create($data);
-        broadcast(new SendMessageEvent($message));
-        $this->selectedConversation->load('messages');
-        // ✅ تفريغ الحقول
-        $this->reset(['messageBody', 'attachment']);
+            
+        return Message::create($data);
     }
 
     public function newChatMessage($data)
     {
+        $con = Conversation::find($data['conversation_id'])->first();
         if ($this->selectedConversation && $data['conversation_id'] == $this->selectedConversation->id) {
+            $con->messages()->where('sender_id', $this->reciverId)->whereNull('read_at') ->update([
+                'is_read' => true,
+                'read_at' => now(),
+            ]);
             $this->selectedConversation->load('messages');
+
+            MessageReadedEvent::dispatch($con);
+            // إرسال حدث لتحديث الكومبوننتات الفرعية
+            foreach ($con->messages as $message) {
+                $this->dispatch('message-updated', $message->id)->to(MessageChat::class);
+            }
+            // أطلق حدث لتفعيل التمرير
+            $this->dispatch('scroll-chat');
+        }else{
+            $name = $con->getOtherUser($this->user->id)->name;
+            toast()->success('you have new message from ' . $name)->push();
         }
     }
 

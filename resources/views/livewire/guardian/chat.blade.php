@@ -1,3 +1,3 @@
 <div>
-    <livewire:chat.chat-interface />
+    <livewire:chat.chat-interface :$conversationsUser />
 </div>
