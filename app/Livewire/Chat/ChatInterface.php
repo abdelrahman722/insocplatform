@@ -173,8 +173,8 @@ class ChatInterface extends Component
             // أطلق حدث لتفعيل التمرير
             $this->dispatch('scroll-chat');
         }else{
-            $name = $con->getOtherUser($this->user->id)->name;
-            toast()->success('you have new message from ' . $name)->push();
+            $otherUser = $con->getOtherUser($this->user->id);
+            toast()->success('you have new message from <span wire:click="selectConversation(' . $otherUser->id . ')" class="cursor-pointer text-blue-500">' . $otherUser->name . '</span>')->doNotSanitize()->push();
         }
     }
 
