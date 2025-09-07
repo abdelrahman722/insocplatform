@@ -38,7 +38,7 @@ RUN chown -R www-data:www-data \
 
 # تكوين Apache
 RUN a2enmod rewrite
-COPY ./.htaccess /var/www/html/.htaccess
+COPY ./public/.htaccess /var/www/html/.htaccess
 
 # فتح المنفذ
 EXPOSE 8080
