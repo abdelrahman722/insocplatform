@@ -27,21 +27,13 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # إعداد العمل
 WORKDIR /var/www/html
 
-# 1. نسخ ملفات التكوين الأساسية أولاً (قبل تثبيت التبعيات)
-COPY .env.example .env
-COPY composer.json composer.lock ./
-
-# 2. توليد مفتاح التطبيق (الآن سيجد ملف .env)
-RUN cp .env.example .env && \
-    php artisan key:generate --force
-
-# 3. نسخ باقي الملفات
+# نسخ الملفات (بدون محاولة توليد مفتاح)
 COPY . .
 
-# 4. تثبيت التبعيات
+# تثبيت التبعيات
 RUN composer install --no-dev --optimize-autoloader
 
-# 5. تشغيل الترحيلات
+# تشغيل الترحيلات
 RUN php artisan migrate --force
 
 # المرحلة 2: تشغيل التطبيق
