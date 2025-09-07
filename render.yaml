@@ -1,0 +1,59 @@
+# render.yaml
+services:
+  - type: web
+    name: laravel-app
+    runtime: docker
+    env: production
+    plan: starter
+    region: oregon
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+      - key: APP_KEY
+        generateValue: true
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_HOST
+        fromDatabase: 
+          name: laravel-db
+          property: host
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_DATABASE
+        fromDatabase: 
+          name: laravel-db
+          property: database
+      - key: DB_USERNAME
+        fromDatabase: 
+          name: laravel-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase: 
+          name: laravel-db
+          property: password
+      - key: REDIS_HOST
+        value: localhost
+      - key: REDIS_PASSWORD
+        value: ""
+      - key: REDIS_PORT
+        value: "6379"
+      - key: SESSION_DRIVER
+        value: database
+      - key: CACHE_DRIVER
+        value: database
+      - key: QUEUE_CONNECTION
+        value: database
+      - key: BROADCAST_DRIVER
+        value: log
+    buildCommand: echo "Build complete"
+    startCommand: php artisan serve --host=0.0.0.0 --port=$PORT
+    disk:
+      name: laravel-storage
+      mountPath: /var/www/html/storage
+      sizeGB: 1
+
+databases:
+  - name: laravel-db
+    plan: free
