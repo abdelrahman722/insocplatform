@@ -1,6 +1,5 @@
-# Dockerfile
 # المرحلة 1: بناء التطبيق
-FROM php:8.2-fpm AS build
+FROM php:8.3-fpm AS build
 
 # تثبيت التبعيات الأساسية
 RUN apt-get update && apt-get install -y \
@@ -41,7 +40,7 @@ RUN php artisan key:generate --force
 RUN php artisan migrate --force
 
 # المرحلة 2: تشغيل التطبيق
-FROM php:8.2-fpm
+FROM php:8.3-fpm
 
 # تثبيت التمديدات
 RUN apt-get update && apt-get install -y \
