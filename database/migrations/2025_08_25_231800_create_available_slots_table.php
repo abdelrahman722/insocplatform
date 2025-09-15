@@ -21,7 +21,7 @@ return new class extends Migration
             $table->timestamps();
             
             // فريدة: لا يمكن للمدرس أن يكون له نفس الوقت في نفس اليوم
-            $table->unique(['teacher_id', 'day_of_week', 'start_time', 'end_time']);
+            $table->unique(['teacher_id', 'day_of_week', 'start_time', 'end_time'], 'uniq_slot_combination');
         });
     }
 
