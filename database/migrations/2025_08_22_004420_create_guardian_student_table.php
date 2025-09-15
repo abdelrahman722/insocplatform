@@ -9,7 +9,7 @@ class CreateGuardianStudentTable extends Migration {
 	public function up()
 	{
 		Schema::create('guardian_student', function(Blueprint $table) {
-			$table->increments('id');
+			$table->id();
 			$table->foreignId('student_id')->constrained()->cascadeOnDelete();
 			$table->foreignId('guardian_id')->constrained()->cascadeOnDelete();
 			$table->timestamps();
