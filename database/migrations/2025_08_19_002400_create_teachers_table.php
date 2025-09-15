@@ -9,7 +9,7 @@ class CreateTeachersTable extends Migration {
 	public function up()
 	{
 		Schema::create('teachers', function(Blueprint $table) {
-			$table->increments('id');
+			$table->id();
 			$table->string('job_number');
 			$table->string('job_title');
 			$table->string('phone');
